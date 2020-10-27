@@ -1,2 +1,2 @@
 # RLFromHumanPrefrences
-Reinforcement learning from human preferences to produce behavior unaligned with intended, learning via human preferences with Garner tools.
+Reinforcement learning from human preferences to produce behavior unaligned from environment rewards, learning via human preferences with Garner tools.
