@@ -115,11 +115,11 @@ class RewardPredictorEnsemble(nn.Module):
     
         self.n_steps = 0
         
-    def forward(self, x):
+    def forward(self, s1s, s2s):
         """
         Return concatenation of all the reward networks outputs
         """
-        return torch.cat([rp(x.clone()) for rp in self.rps], dim=1)
+        return torch.stack([rp(s1s.clone(), s2s.clone()) for rp in self.rps], dim=0)
     
     def raw_reward(self, x):
         """
@@ -138,22 +138,22 @@ class RewardPredictorEnsemble(nn.Module):
         with torch.no_grad():
             ensemble_rewards = self.raw_reward(x).permute(1,0)
             
-        print(ensemble_rewards.shape)
-            
         ensemble_rewards -= ensemble_rewards.mean(axis = 0)
         ensemble_rewards /= (ensemble_rewards.std(axis = 0)+1e-12)
         ensemble_rewards *= 0.05
         
-        rs = torch.mean(ensemble_rewards, axis=0)
+        rs = torch.mean(ensemble_rewards, axis=1)
         
         return rs
     
-    def preferences(self, s1, s2):
+    def preferences(self, s1s, s2s):
         """
         Predict probability of human preferring one segment over another
         for each segment in the supplied batch of segment pairs.
         """
-        pass
+        #with torch.no_grad():
+        ensemble_rewards = self.forward(s1s, s2s)
+        return ensemble_rewards
     
     def train(self, prefs_train, prefs_val, val_interval):
         """
