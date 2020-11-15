@@ -22,6 +22,14 @@ pip install -e .
 pip install -r requirements.txt
 ```
 
+## Code
+code adapted from the following repos:
+
+- [ikostrikov](https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail)
+- [mhratz](https://github.com/mrahtz/learning-from-human-preferences)
+- [openai/baselines](https://github.com/openai/baselines)
+- [openai/universe-starter-agent](https://github.com/openai/universe-starter-agent)
+
 ## Paper
 ### Deep reinforcement learning from human preferences
 Reproduction of OpenAI and Deepminds project using [Garner](https://garner.app) tools to gather human prefrences efficiently on a large scale.
