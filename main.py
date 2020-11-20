@@ -12,6 +12,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from reward_predictor import Reward_Predictor
+from pref_db import PrefBuffer, PrefDB, Segment
 
 from a2c_ppo_acktr import utils
 from a2c_ppo_acktr.a2c_acktr import A2C_ACKTR
