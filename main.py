@@ -11,6 +11,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
+from reward_predictor import Reward_Predictor
+
 from a2c_ppo_acktr import utils
 from a2c_ppo_acktr.a2c_acktr import A2C_ACKTR
 from a2c_ppo_acktr.arguments import get_args
@@ -40,6 +42,11 @@ def main():
 
     envs = make_vec_envs(args.env_name, args.seed, args.num_processes,
                          args.gamma, args.log_dir, device, False)
+
+    reward_predictor = Reward_Predictor(
+        envs.observation_space.shape
+    )
+    reward_predictor.to(device)
 
     actor_critic = Policy(
         envs.observation_space.shape,
@@ -90,12 +97,16 @@ def main():
                 if 'episode' in info.keys():
                     episode_rewards.append(info['episode']['r'])
 
+            #print(reward.shape)
+            #print(reward)
+            #break
             # If done then clean the history of observations.
             masks = torch.FloatTensor(
                 [[0.0] if done_ else [1.0] for done_ in done])
             bad_masks = torch.FloatTensor(
                 [[0.0] if 'bad_transition' in info.keys() else [1.0]
                  for info in infos])
+                 
             rollouts.insert(obs, recurrent_hidden_states, action,
                             action_log_prob, value, reward, masks, bad_masks)
 
@@ -103,6 +114,17 @@ def main():
             next_value = actor_critic.get_value(
                 rollouts.obs[-1], rollouts.recurrent_hidden_states[-1],
                 rollouts.masks[-1]).detach()
+
+
+        #Switch environment reward for custom reward_predictor
+        obs_shape = rollouts.obs.size()[3:]
+
+        with torch.no_grad():
+            preds = reward_predictor.reward(
+                rollouts.obs[:-1, :, 0].view(-1, 1, *obs_shape)
+            )
+            rollouts.rewards = preds.view(args.num_steps, args.num_processes, 1)
+
 
         rollouts.compute_returns(next_value, args.use_gae, args.gamma,
                                  args.gae_lambda, args.use_proper_time_limits)

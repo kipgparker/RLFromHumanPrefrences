@@ -1,0 +1,25 @@
+{
+    "root": "/home/kip/Desktop/GARNERWORK/RLFromHumanPrefrences",
+    "program": "main.py",
+    "git": {
+        "remote": "https://github.com/kipgparker/RLFromHumanPrefrences.git",
+        "commit": "52eb5c44978925f35560a252c6b8780b1b3fe94b"
+    },
+    "email": "kipsterbroz@gmail.com",
+    "startedAt": "2020-11-19T20:46:21.670228",
+    "host": "kips-linux-machine",
+    "username": "kip",
+    "executable": "/home/kip/anaconda3/bin/python",
+    "os": "Linux-5.4.0-53-generic-x86_64-with-debian-buster-sid",
+    "python": "3.7.6",
+    "gpu": "GeForce RTX 2080 Ti",
+    "gpu_count": 1,
+    "cpu_count": 8,
+    "args": [],
+    "state": "killed",
+    "jobType": null,
+    "mode": "run",
+    "project": "a2c_2",
+    "heartbeatAt": "2020-11-19T20:59:23.056701",
+    "exitcode": 255
+}
