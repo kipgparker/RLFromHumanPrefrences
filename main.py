@@ -4,8 +4,6 @@ import os
 import time
 from collections import deque
 
-from torch import roll
-
 import gym
 import numpy as np
 import torch
@@ -24,44 +22,11 @@ from a2c_ppo_acktr.model import Policy
 from a2c_ppo_acktr.storage import RolloutStorage
 from evaluation import evaluate
 
-import torch.multiprocessing as mp
-
 import garner as g
-
-#mp.set_start_method("spawn")
-#from multiprocessing import Process
 
 
 def main():
     args = get_args()
-
-    mp.set_start_method("spawn")
-
-    #torch.manual_seed(args.seed)
-    #torch.cuda.manual_seed_all(args.seed)
-
-    #if args.cuda and torch.cuda.is_available() and args.cuda_deterministic:
-    #    torch.backends.cudnn.benchmark = False
-    #    torch.backends.cudnn.deterministic = True
-
-    #torch.set_num_threads(1)  
-
-    device = torch.device("cuda:0" if args.cuda else "cpu")
-
-    envs = make_vec_envs(args.env_name, args.seed, args.num_processes,
-                        args.gamma, args.log_dir, torch.device("cpu"), False)
-
-    reward_predictor = Reward_Predictor(
-        envs.observation_space.shape
-    )
-    reward_predictor.to(device)
-    #reward_predictor.base.share_memory()
-
-    actor_critic = Policy(
-        envs.observation_space.shape,
-        envs.action_space,
-        base_kwargs={'recurrent': args.recurrent_policy})
-    actor_critic.to(device)
 
     g.login('kipgparker@gmail.com')
     g.select_pool('Deep reinforcement learning from human prefrences')
@@ -74,44 +39,35 @@ def main():
 
     pref_buffer.start_thread()
 
-    processes = []
-    
-    p = mp.Process(target=train_policy, args=(args, actor_critic, reward_predictor))
-    p.start()
-    processes.append(p)
 
-    p = mp.Process(target=train_reward_predictor, args=(args, reward_predictor, pref_buffer))
-    p.start()
-    processes.append(p)
-    
-    for p in processes:
-        p.join()
-    #f(args, agent, rollouts, envs, actor_critic, reward_predictor, device, eval_log_dir)
-    
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
 
-
-def train_reward_predictor(args, reward_predictor, pref_buffer):
-
-    device = torch.device("cuda:0" if args.cuda else "cpu")
-
-    #Run forever
-    while True:
-        db_train, db_val = pref_buffer.get_dbs()
-        reward_predictor.train(db_train, db_val, device)
-
-def train_policy(args, actor_critic, reward_predictor):
+    if args.cuda and torch.cuda.is_available() and args.cuda_deterministic:
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
 
     log_dir = os.path.expanduser(args.log_dir)
     eval_log_dir = log_dir + "_eval"
     utils.cleanup_log_dir(log_dir)
     utils.cleanup_log_dir(eval_log_dir)
 
+    torch.set_num_threads(1)
     device = torch.device("cuda:0" if args.cuda else "cpu")
 
     envs = make_vec_envs(args.env_name, args.seed, args.num_processes,
                          args.gamma, args.log_dir, device, False)
 
-    #actor_critic.base.share_memory()
+    reward_predictor = Reward_Predictor(
+        envs.observation_space.shape
+    )
+    reward_predictor.to(device)
+
+    actor_critic = Policy(
+        envs.observation_space.shape,
+        envs.action_space,
+        base_kwargs={'recurrent': args.recurrent_policy})
+    actor_critic.to(device)
 
     agent = A2C_ACKTR(
         actor_critic,
@@ -164,8 +120,8 @@ def train_policy(args, actor_critic, reward_predictor):
                 [[0.0] if done_ else [1.0] for done_ in done])
             bad_masks = torch.FloatTensor(
                 [[0.0] if 'bad_transition' in info.keys() else [1.0]
-                for info in infos])
-                
+                 for info in infos])
+                 
             rollouts.insert(obs, recurrent_hidden_states, action,
                             action_log_prob, value, reward, masks, bad_masks)
 
@@ -178,25 +134,21 @@ def train_policy(args, actor_critic, reward_predictor):
         #Switch environment reward for custom reward_predictor
         obs_shape = rollouts.obs.size()[3:]
 
-        #Alternative with seq length
-        #obs_shape = rollouts.obs.size()[2:]
-        #rollouts.obs[:-1].view(-1, *obs_shape)
-        
-
         with torch.no_grad():
             preds = reward_predictor.reward(
                 rollouts.obs[:-1, :, 0].view(-1, 1, *obs_shape)
             )
-            #print(rollouts.obs[:-1, :, 0].view(-1, 1, *obs_shape).shape)
             rollouts.rewards = preds.view(args.num_steps, args.num_processes, 1)
 
 
         rollouts.compute_returns(next_value, args.use_gae, args.gamma,
-                                args.gae_lambda, args.use_proper_time_limits)
+                                 args.gae_lambda, args.use_proper_time_limits)
 
         value_loss, action_loss, dist_entropy = agent.update(rollouts)
 
         rollouts.after_update()
+
+
 
         # save for every interval-th episode or for the last epoch
         if (j % args.save_interval == 0
@@ -228,13 +180,7 @@ def train_policy(args, actor_critic, reward_predictor):
                 and j % args.eval_interval == 0):
             ob_rms = utils.get_vec_normalize(envs).ob_rms
             evaluate(actor_critic, ob_rms, args.env_name, args.seed,
-                    args.num_processes, eval_log_dir, device)
-
-
-    #mp.set_start_method('spawn')
-    #proc = mp.Process(target=f)
-    #proc.start()
-    #proc.join()
+                     args.num_processes, eval_log_dir, device)
 
 
 if __name__ == "__main__":
