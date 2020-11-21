@@ -126,7 +126,7 @@ class Reward_Predictor(nn.Module):
                 total += predicted.size(0)
                 correct += (predicted == prefs.to(device)).sum().item()
 
-        print(f'accuracy of reward on {total} trajectories: {(100 * correct / total)}')
+        return total, correct
 
 
 

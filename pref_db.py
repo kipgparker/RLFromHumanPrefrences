@@ -178,7 +178,6 @@ class PrefBuffer:
         result = self.garner.query()
         
         if len(result) != 0:
-            print('get')
             for key, value in result.items():
                 k1, k2 = self.queue[key]
                 
@@ -191,13 +190,12 @@ class PrefBuffer:
     def put_prefs(self):
         try:
             while len(self.queue) <= self.maxqlen:
-                print('put')
                 k1, k2 = self.select_prefs()
-                pref_id = self.garner.put([np.array(copy.deepcopy(self.segments[k1]).frames), 
-                                           np.array(copy.deepcopy(self.segments[k1]).frames)], False)
+                pref_id = self.garner.put([np.array(copy.deepcopy(self.segments[k1]).frames, dtype=np.uint8), 
+                                           np.array(copy.deepcopy(self.segments[k1]).frames, dtype=np.uint8)], False)
                 self.queue[pref_id] = (k1, k2)
         except:
-            print('No prefs to compare')
+            print('No prefs to put')
         
     def run(self):
         while not self.stop_run:
@@ -233,5 +231,4 @@ class PrefBuffer:
 
 
     def del_first(self):
-        print(self.segments)
         del self.segments[next(iter(self.segments))]

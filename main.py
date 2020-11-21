@@ -35,7 +35,7 @@ def main():
     pref_db_train = PrefDB(maxlen=30000)
     pref_db_val = PrefDB(maxlen=5000)
     pref_buffer = PrefBuffer(garner = g, db_train=pref_db_train,
-                    db_val=pref_db_val, maxlen=30)
+                    db_val=pref_db_val, maxlen=100, maxqlen=5)
 
     pref_buffer.start_thread()
 
@@ -88,6 +88,8 @@ def main():
 
     episode_rewards = deque(maxlen=10)
 
+    segment = Segment()
+
     start = time.time()
     num_updates = int(
         args.num_env_steps) // args.num_steps // args.num_processes
@@ -112,9 +114,6 @@ def main():
                 if 'episode' in info.keys():
                     episode_rewards.append(info['episode']['r'])
 
-            #print(reward.shape)
-            #print(reward)
-            #break
             # If done then clean the history of observations.
             masks = torch.FloatTensor(
                 [[0.0] if done_ else [1.0] for done_ in done])
@@ -125,11 +124,24 @@ def main():
             rollouts.insert(obs, recurrent_hidden_states, action,
                             action_log_prob, value, reward, masks, bad_masks)
 
+            #update segment with observations
+            segment.append(np.copy(obs[0, 0].cpu().detach()))
+            if len(segment) == 25 or done[0]:
+                while len(segment) < 25:
+                    # Pad to 25 steps long so that all segments in the batch
+                    # have the same length.
+                    # Note that the reward predictor needs the full frame
+                    # stack, so we send all frames.
+                    segment.append(np.copy(obs[0, 0].cpu().detach()))
+
+                segment.finalise()
+                pref_buffer.add_segment(segment)
+                segment = Segment()
+
         with torch.no_grad():
             next_value = actor_critic.get_value(
                 rollouts.obs[-1], rollouts.recurrent_hidden_states[-1],
                 rollouts.masks[-1]).detach()
-
 
         #Switch environment reward for custom reward_predictor
         obs_shape = rollouts.obs.size()[3:]
@@ -146,9 +158,13 @@ def main():
 
         value_loss, action_loss, dist_entropy = agent.update(rollouts)
 
+        db_train, db_val = pref_buffer.get_dbs()
+
+        if len(db_train) > 20 and len(db_val) > 10:
+            total, correct = reward_predictor.train(db_train, db_val, device)
+            print(f'accuracy of reward on {total} trajectories: {(100 * correct / total)}')
+
         rollouts.after_update()
-
-
 
         # save for every interval-th episode or for the last epoch
         if (j % args.save_interval == 0
@@ -167,6 +183,7 @@ def main():
         if j % args.log_interval == 0 and len(episode_rewards) > 1:
             total_num_steps = (j + 1) * args.num_processes * args.num_steps
             end = time.time()
+
             print(
                 "Updates {}, num timesteps {}, FPS {} \n Last {} training episodes: mean/median reward {:.1f}/{:.1f}, min/max reward {:.1f}/{:.1f}\n"
                 .format(j, total_num_steps,
