@@ -30,9 +30,10 @@ class Reward_Predictor(nn.Module):
         self.base = base(1, **base_kwargs)
         
         self.softmax = nn.Softmax(dim=1)
+
+        self.criterion = torch.nn.CrossEntropyLoss()
+        self.optimizer = torch.optim.Adam(self.base.parameters(), lr=3e-4)
     
-
-
     def forward(self, s1s, s2s):
         assert s1s.shape == s2s.shape, "segments should be the same shape"
         
@@ -40,8 +41,8 @@ class Reward_Predictor(nn.Module):
         batch_size = shape[0]
         segment_length = shape[1]
         
-        print(f'batchsize: {batch_size}')
-        print(f'seg len: {segment_length}')
+        #print(f'batchsize: {batch_size}')
+        #print(f'seg len: {segment_length}')
         
         #wrapping segment_length and batch_size, so size[0] is 'batchsize * segment_length'
         s1s = torch.reshape(s1s, ([-1] + list(s1s.shape[2:])))
@@ -50,7 +51,7 @@ class Reward_Predictor(nn.Module):
         #stack segments and batchsize together, so new shape is '2 * batchsize * segment_length'
         x = torch.cat((s1s, s2s), axis = 0)
         
-        print(f'shape: {x.shape}')
+        #print(f'shape: {x.shape}')
         
         x = self.base(x)
         
@@ -85,6 +86,49 @@ class Reward_Predictor(nn.Module):
         reward /= (reward.std() + 1e-12)
         reward *= -0.05
         return reward
+
+    #def train(self, pref_buffer):
+    def train(self, train_db, val_db, device):
+        #train_db, val_db = pref_buffer.get_dbs()
+        train_loader = torch.utils.data.DataLoader(
+            train_db,
+            batch_size=32,
+            shuffle=False,
+            num_workers=8
+        )
+        val_loader = torch.utils.data.DataLoader(
+            val_db,
+            batch_size=32,
+            shuffle=False,
+            num_workers=8
+        )
+
+        for batch in train_loader:
+            s1s, s2s, prefs = batch
+            
+            self.optimizer.zero_grad()
+            
+            preds = self(s1s.to(device), s2s.to(device))
+            
+            loss = self.criterion(preds, prefs.to(device))
+            loss.backward()
+            self.optimizer.step()
+        
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for batch in val_loader:
+                s1s, s2s, prefs = batch
+                preds = self(s1s.to(device), s2s.to(device))
+                
+                predicted = torch.max(preds.data, 1)[1]
+
+                total += predicted.size(0)
+                correct += (predicted == prefs.to(device)).sum().item()
+
+        print(f'accuracy of reward on {total} trajectories: {(100 * correct / total)}')
+
+
 
 
 class NNBase(nn.Module):

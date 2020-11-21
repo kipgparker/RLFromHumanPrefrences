@@ -120,7 +120,7 @@ class PrefDB(torch.utils.data.Dataset):
         
         k1, k2, pref = self.prefs[idx]
 
-        return self.segments[k1], self.segments[k2], pref
+        return self.segments[k1], self.segments[k2], torch.tensor(pref)
     
 class PrefBuffer:
     def __init__(self, garner, db_train, db_val, maxlen = 1000, maxqlen = 5):
