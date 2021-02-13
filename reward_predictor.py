@@ -69,9 +69,9 @@ class Reward_Predictor(nn.Module):
         
         #Predict human preference for each segment
         rs = torch.cat((r1, r2), axis = 1)
-        pred = self.softmax(rs)
+        #rs = self.softmax(rs)
         
-        return pred
+        return rs
     
     def reward(self, obs):
         """
